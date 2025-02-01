@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation'
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'storage-bucket-project'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD']
+            AllowedOrigins: ['*']
+            MaxAge: 3000
+
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: 't2.small'
+      ImageId: 'ami-053b0d53c279acc90'
+      SecurityGroupIds:
+        - Ref: 'EC2SecurityGroup'
+      Tags:
+        - Key: Name
+          Value: EC2Instance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt-get update -y
+          sudo apt install git -y
+          sudo apt-get install -y nodejs npm
+          git clone https://gitlab-ci-token:glpat-agrCMsfsvVKV8Zsfqtvs@gitlab.com/shakti.patel/frontend-cloudstorage.git  /home/ubuntu/app
+          cd /home/ubuntu/app
+          #sudo chown -R ubuntu:ubuntu /home/ubuntu/app
+          echo "REACT_APP_CLOUD_STORAGE_GATEWAY_ID=${ApiGatewayRestApi}" >> /home/ubuntu/app/.env.local
+          echo "REACT_APP_CLOUD_STORAGE_GATEWAY_KEY_ID=${ApiGatewayApiKey}" >> /home/ubuntu/app/.env.local
+          npm install >> /var/log/startup.log 2>&1
+          npm start >> /var/log/startup.log 2>&1
+
+  EC2SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'SG'
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: 'tcp'
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: '0.0.0.0/0'
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: MyLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  MainLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'CloudStorage-Main-Lambda'
+      Runtime: 'nodejs16.x'
+      Role: !GetAtt LambdaExecutionRole.Arn  # Ensure this exists
+      Handler: 'index.handler'
+      Code:
+        S3Bucket: 'cloudformation-zip-bucket'
+        S3Key: 'main-lambda-deploy.zip'
+      Timeout: 20
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: CloudStorage-ApiGateway
+
+  ApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: '{proxy+}'
+
+  ApiGatewayAnyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ApiGatewayResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            'application/json': 'Empty'
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            'application/json': 'Empty'
+
+  ApiGatewayOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ApiGatewayResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              'application/json': ''
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          'application/json': '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            'application/json': 'Empty'
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayAnyMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: prod
+
+  ApiGatewayApiKey:
+    Type: 'AWS::ApiGateway::ApiKey'
+    DependsOn: 'ApiGatewayDeployment'
+    Properties:
+      Name: 'CloudStorageApiKey'
+      Description: 'API Key'
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGatewayRestApi
+          StageName: 'prod'
+
+  ApiGatewayUsagePlan:
+    Type: 'AWS::ApiGateway::UsagePlan'
+    DependsOn: ['ApiGatewayApiKey', 'ApiGatewayAnyMethod']
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ApiGatewayRestApi
+          Stage: 'prod'
+      Description: 'Usage plan for ApiGatewayRestApi'
+      Quota:
+        Limit: 800
+        Period: 'MONTH'
+      Throttle:
+        BurstLimit: 10
+        RateLimit: 80
+
+  ApiUsagePlanKey:
+    Type: 'AWS::ApiGateway::UsagePlanKey'
+    Properties:
+      KeyId: !Ref ApiGatewayApiKey
+      KeyType: 'API_KEY'
+      UsagePlanId: !Ref ApiGatewayUsagePlan
+
+  MainLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt MainLambdaFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/*/*'
+
+  DynamoDBTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: ImageMetaData
+      AttributeDefinitions:
+        - AttributeName: image_url
+          AttributeType: S
+      KeySchema:
+        - AttributeName: image_url
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
