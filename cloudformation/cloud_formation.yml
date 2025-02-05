@@ -29,7 +29,7 @@ Resources:
           sudo apt-get update -y
           sudo apt install git -y
           sudo apt-get install -y nodejs npm
-          git clone https://gitlab-ci-token:glpat-agrCMsfsvVKV8Zsfqtvs@gitlab.com/shakti.patel/frontend-cloudstorage.git  /home/ubuntu/app
+          git clone ?  /home/ubuntu/app
           cd /home/ubuntu/app
           #sudo chown -R ubuntu:ubuntu /home/ubuntu/app
           echo "REACT_APP_CLOUD_STORAGE_GATEWAY_ID=${ApiGatewayRestApi}" >> /home/ubuntu/app/.env.local
