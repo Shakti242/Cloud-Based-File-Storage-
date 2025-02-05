@@ -9,3 +9,4 @@ export const API_GATEWAY_KEY_ID =
   process.env.REACT_APP_CLOUD_STORAGE_GATEWAY_KEY_ID;
 
 export const REGION = 'us-east-1';
+//there is no secret
