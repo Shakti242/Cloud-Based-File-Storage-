@@ -1,8 +1,8 @@
 import AWS from 'aws-sdk';
 import { REGION } from '../constants';
 
-const ACCESS_KEY_ID = 'AKIARDPGST2HCCQNSAUN';
-const SECRET_ACCESS_KEY = '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';
+const ACCESS_KEY_ID = 'AKIAUZPNLVLURUPK2SOB';
+const SECRET_ACCESS_KEY = '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';
 
 AWS.config.update({
   region: REGION,

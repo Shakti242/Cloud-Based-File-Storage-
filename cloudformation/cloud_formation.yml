@@ -5,7 +5,7 @@ Resources:
   S3Bucket:
     Type: 'AWS::S3::Bucket'
     Properties:
-      BucketName: 'storage-bucket-project'
+      BucketName: 'storage-bucket-project2'
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ['*']
@@ -82,8 +82,8 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn  # Ensure this exists
       Handler: 'index.handler'
       Code:
-        S3Bucket: 'cloudformation-zip-bucket'
-        S3Key: 'main-lambda-deploy.zip'
+        S3Bucket: 'cloudformation-zip-bucket2'
+        S3Key: '  
       Timeout: 20
 
   ApiGatewayRestApi:
