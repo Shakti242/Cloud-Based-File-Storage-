@@ -14,6 +14,17 @@ The system consists of the following AWS components:
 - **DynamoDB**: Stores metadata and user-related information.
 - **CloudFormation**: Provides Infrastructure as Code (IaC) for deployment automation.
 
+## 🖼️ Architecture Diagram
+![Cloud-Based File Storage Architecture](https://github.com/Shakti242/Cloud-Based-File-Storage-/blob/main/Image)
+
+The above diagram illustrates the architecture of the cloud-based file storage system:
+- Users authenticate via **Amazon Cognito**.
+- An **EC2 instance** handles requests and integrates with **GitLab**.
+- Uploaded files are stored in **S3**.
+- Requests are routed through **API Gateway** to **AWS Lambda** for processing.
+- File metadata and user data are stored in **DynamoDB**.
+- **CloudFormation** is used for managing infrastructure as code (IaC).
+
 ## 🛠️ Technologies Used
 - **AWS** (EC2, S3, API Gateway, Lambda, DynamoDB, Cognito, CloudFormation)
 - **GitLab** for CI/CD
